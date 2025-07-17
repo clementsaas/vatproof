@@ -1,0 +1,470 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8 text-center">
+        <h1 class="display-4 fw-bold text-primary mb-3">
+            <i class="bi bi-shield-check me-3"></i>
+            VATProof
+        </h1>
+        <p class="lead text-muted mb-4">
+            Vérifiez vos numéros de TVA intracommunautaire et obtenez 
+            automatiquement les justificatifs PDF officiels du site VIES.
+        </p>
+        
+        <!-- Tabs pour choisir le mode d'import -->
+        <ul class="nav nav-pills nav-justified mb-4" id="importTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="file-tab" data-bs-toggle="pill" data-bs-target="#file-import" type="button" role="tab">
+                    <i class="bi bi-cloud-upload me-2"></i>
+                    Importer un fichier
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="paste-tab" data-bs-toggle="pill" data-bs-target="#paste-import" type="button" role="tab">
+                    <i class="bi bi-clipboard me-2"></i>
+                    Coller une liste
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="importTabsContent">
+            
+            <!-- Import par fichier -->
+            <div class="tab-pane fade show active" id="file-import" role="tabpanel">
+                <div class="card shadow-sm">
+                    <div class="card-body p-4">
+                        
+                        <!-- Zone de drag & drop -->
+                        <div id="dropzone" class="border-2 border-dashed border-secondary rounded-3 p-4 text-center mb-3" 
+                             style="min-height: 150px; cursor: pointer;">
+                            <div class="d-flex flex-column align-items-center justify-content-center h-100">
+                                <i class="bi bi-cloud-upload text-primary" style="font-size: 2.5rem;"></i>
+                                <h6 class="mt-3 mb-2">Glissez votre fichier ici</h6>
+                                <p class="text-muted mb-2">
+                                    ou <span class="text-primary fw-bold">cliquez pour parcourir</span>
+                                </p>
+                                <div class="small text-muted">
+                                    Formats: CSV, Excel (.xlsx, .xls), TXT (max 16 MB)
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Input file caché -->
+                        <input type="file" id="fileInput" class="d-none" accept=".csv,.xlsx,.xls,.txt">
+                        
+                        <!-- Informations sur le format -->
+                        <div class="alert alert-info small">
+                            <strong>Format attendu:</strong> Une colonne avec les numéros de TVA (ex: FR12345678901, DE123456789).
+                            Colonne optionnelle: nom de société.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Import par copier-coller -->
+            <div class="tab-pane fade" id="paste-import" role="tabpanel">
+                <div class="card shadow-sm">
+                    <div class="card-body p-4">
+                        <form id="pasteForm">
+                            <div class="mb-3">
+                                <label for="vatList" class="form-label">
+                                    <i class="bi bi-clipboard me-2"></i>
+                                    Collez votre liste de numéros de TVA
+                                </label>
+                                <textarea 
+                                    class="form-control" 
+                                    id="vatList" 
+                                    rows="8" 
+                                    placeholder="FR12345678901&#10;DE987654321&#10;IT12312312345&#10;&#10;Un numéro par ligne"
+                                    style="font-family: 'Courier New', monospace;"></textarea>
+                                <div class="form-text">
+                                    Vous pouvez coller une colonne depuis Excel ou saisir manuellement (un numéro par ligne).
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <button type="button" class="btn btn-outline-secondary" id="clearBtn">
+                                        <i class="bi bi-eraser me-2"></i>
+                                        Effacer
+                                    </button>
+                                </div>
+                                <div class="col-md-6 text-end">
+                                    <button type="submit" class="btn btn-primary" id="parseBtn">
+                                        <i class="bi bi-check2-circle me-2"></i>
+                                        Analyser la liste
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Zone de prévisualisation des données (masquée par défaut) -->
+        <div id="previewSection" class="mt-4 d-none">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">
+                        <i class="bi bi-eye me-2"></i>
+                        Aperçu des données
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="previewStats" class="row text-center mb-3">
+                        <!-- Statistiques générées par JavaScript -->
+                    </div>
+                    
+                    <div id="previewContent">
+                        <!-- Le contenu sera généré par JavaScript -->
+                    </div>
+                    
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <div class="text-muted" id="previewSummary">
+                            <!-- Résumé généré par JavaScript -->
+                        </div>
+                        <button type="button" class="btn btn-success btn-lg" id="startVerificationBtn">
+                            <i class="bi bi-play-circle me-2"></i>
+                            Lancer la vérification
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Zone de progression (masquée par défaut) -->
+        <div id="progressSection" class="mt-4 d-none">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-gear me-2"></i>
+                        Vérification en cours...
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="progress mb-3" style="height: 25px;">
+                        <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" style="width: 0%">
+                            0%
+                        </div>
+                    </div>
+                    
+                    <div class="row text-center">
+                        <div class="col-3">
+                            <div class="text-muted small">En attente</div>
+                            <div class="fs-4 fw-bold text-secondary" id="pendingCount">0</div>
+                        </div>
+                        <div class="col-3">
+                            <div class="text-muted small">En cours</div>
+                            <div class="fs-4 fw-bold text-primary" id="processingCount">0</div>
+                        </div>
+                        <div class="col-3">
+                            <div class="text-muted small">Terminées</div>
+                            <div class="fs-4 fw-bold text-success" id="completedCount">0</div>
+                        </div>
+                        <div class="col-3">
+                            <div class="text-muted small">Erreurs</div>
+                            <div class="fs-4 fw-bold text-danger" id="errorCount">0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Zone de téléchargement (masquée par défaut) -->
+        <div id="downloadSection" class="mt-4 d-none">
+            <div class="card shadow-sm border-success">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-check-circle me-2"></i>
+                        Vérification terminée
+                    </h5>
+                </div>
+                <div class="card-body text-center">
+                    <i class="bi bi-file-earmark-zip text-success" style="font-size: 3rem;"></i>
+                    <h5 class="mt-3">Vos justificatifs sont prêts</h5>
+                    <p class="text-muted mb-4">
+                        Tous les PDF officiels ont été regroupés dans un fichier ZIP horodaté.
+                    </p>
+                    
+                    <button type="button" class="btn btn-success btn-lg" id="downloadZipBtn">
+                        <i class="bi bi-download me-2"></i>
+                        Télécharger les justificatifs
+                    </button>
+                    
+                    <div class="mt-3">
+                        <small class="text-muted">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Les fichiers seront automatiquement supprimés de nos serveurs après téléchargement.
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section d'aide -->
+<div class="row mt-5">
+    <div class="col-md-4 text-center">
+        <i class="bi bi-shield-check text-success" style="font-size: 2rem;"></i>
+        <h6 class="mt-2">100% Légal</h6>
+        <p class="small text-muted">Justificatifs officiels VIES acceptés en cas de contrôle fiscal</p>
+    </div>
+    <div class="col-md-4 text-center">
+        <i class="bi bi-lock text-primary" style="font-size: 2rem;"></i>
+        <h6 class="mt-2">Conforme RGPD</h6>
+        <p class="small text-muted">Suppression automatique des fichiers après téléchargement</p>
+    </div>
+    <div class="col-md-4 text-center">
+        <i class="bi bi-file-earmark-pdf text-info" style="font-size: 2rem;"></i>
+        <h6 class="mt-2">PDF Officiels</h6>
+        <p class="small text-muted">Preuves opposables générées par le site VIES</p>
+    </div>
+</div>
+
+<script>
+// JavaScript pour la gestion de l'interface d'import
+document.addEventListener('DOMContentLoaded', function() {
+    
+    // Éléments DOM
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+    const pasteForm = document.getElementById('pasteForm');
+    const vatList = document.getElementById('vatList');
+    const clearBtn = document.getElementById('clearBtn');
+    
+    // État global
+    let currentJobData = null;
+    
+    // Configuration du drag & drop
+    setupDragAndDrop();
+    setupPasteForm();
+    
+    function setupDragAndDrop() {
+        // Clic sur la dropzone
+        dropzone.addEventListener('click', () => fileInput.click());
+        
+        // Drag & drop events
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('border-primary', 'bg-light');
+        });
+        
+        dropzone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            if (!dropzone.contains(e.relatedTarget)) {
+                dropzone.classList.remove('border-primary', 'bg-light');
+            }
+        });
+        
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('border-primary', 'bg-light');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileUpload(files[0]);
+            }
+        });
+        
+        // Changement de fichier via l'input
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFileUpload(e.target.files[0]);
+            }
+        });
+    }
+    
+    function setupPasteForm() {
+        pasteForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const content = vatList.value.trim();
+            handlePasteContent(content);
+        });
+        
+        clearBtn.addEventListener('click', () => {
+            vatList.value = '';
+            vatList.focus();
+        });
+    }
+    
+    async function handleFileUpload(file) {
+        try {
+            showLoading('Analyse du fichier en cours...');
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            const response = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            hideLoading();
+            
+            if (!response.ok) {
+                showError(data.error || 'Erreur lors du traitement du fichier');
+                return;
+            }
+            
+            currentJobData = data;
+            showPreview(data);
+            
+        } catch (error) {
+            hideLoading();
+            showError('Erreur lors de l\'upload du fichier');
+            console.error('Erreur upload:', error);
+        }
+    }
+    
+    async function handlePasteContent(content) {
+        if (!content) {
+            showError('Veuillez saisir au moins un numéro de TVA');
+            return;
+        }
+        
+        try {
+            showLoading('Analyse de la liste en cours...');
+            
+            const response = await fetch('/api/verify-paste', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ content: content })
+            });
+            
+            const data = await response.json();
+            hideLoading();
+            
+            if (!response.ok) {
+                showError(data.error || 'Erreur lors de l\'analyse de la liste');
+                return;
+            }
+            
+            currentJobData = data;
+            showPreview(data);
+            
+        } catch (error) {
+            hideLoading();
+            showError('Erreur lors de l\'analyse de la liste');
+            console.error('Erreur paste:', error);
+        }
+    }
+    
+    function showPreview(data) {
+        const previewSection = document.getElementById('previewSection');
+        const previewStats = document.getElementById('previewStats');
+        const previewContent = document.getElementById('previewContent');
+        const previewSummary = document.getElementById('previewSummary');
+        
+        // Affichage des statistiques
+        previewStats.innerHTML = `
+            <div class="col-3">
+                <div class="text-primary fw-bold fs-4">${data.stats.total_vat_numbers}</div>
+                <div class="small text-muted">Total</div>
+            </div>
+            <div class="col-3">
+                <div class="text-success fw-bold fs-4">${data.stats.valid_count}</div>
+                <div class="small text-muted">Valides</div>
+            </div>
+            <div class="col-3">
+                <div class="text-danger fw-bold fs-4">${data.stats.invalid_count}</div>
+                <div class="small text-muted">Invalides</div>
+            </div>
+            <div class="col-3">
+                <div class="text-warning fw-bold fs-4">${data.stats.duplicate_count}</div>
+                <div class="small text-muted">Doublons</div>
+            </div>
+        `;
+        
+        // Génération du tableau de prévisualisation
+        let html = '<div class="table-responsive"><table class="table table-sm table-hover">';
+        html += '<thead class="table-light"><tr>';
+        html += '<th>Ligne</th><th>Numéro TVA</th><th>Pays</th><th>Statut</th>';
+        html += '</tr></thead><tbody>';
+        
+        if (data.preview && data.preview.length > 0) {
+            data.preview.forEach((item) => {
+                const statusBadge = getStatusBadge(item);
+                const countryDisplay = item.country_name ? 
+                    `${item.country_name} (${item.country_code})` : 
+                    item.country_code || '-';
+                
+                html += `
+                    <tr>
+                        <td>${item.line_number}</td>
+                        <td><code>${item.original}</code></td>
+                        <td>${countryDisplay}</td>
+                        <td>${statusBadge}</td>
+                    </tr>
+                `;
+            });
+        }
+        
+        html += '</tbody></table></div>';
+        
+        // Affichage du résumé
+        const countries = Object.keys(data.countries || {});
+        const countryText = countries.length > 0 ? 
+            `Pays détectés: ${countries.join(', ')}` : 
+            'Aucun pays valide détecté';
+        
+        previewSummary.innerHTML = `
+            <div>
+                <small class="text-muted">${countryText}</small><br>
+                <small class="text-muted">Aperçu des ${Math.min(10, data.stats.total_vat_numbers)} premiers numéros</small>
+            </div>
+        `;
+        
+        previewContent.innerHTML = html;
+        previewSection.classList.remove('d-none');
+        
+        // Configuration du bouton de vérification
+        const startBtn = document.getElementById('startVerificationBtn');
+        startBtn.onclick = () => startVerification();
+        
+        // Désactivation si aucun numéro valide
+        if (data.stats.valid_count === 0) {
+            startBtn.disabled = true;
+            startBtn.innerHTML = '<i class="bi bi-exclamation-triangle me-2"></i>Aucun numéro valide à vérifier';
+        }
+    }
+    
+    function getStatusBadge(item) {
+        if (item.is_duplicate) {
+            return '<span class="badge bg-warning">Doublon</span>';
+        } else if (item.is_valid) {
+            return '<span class="badge bg-success">Valide</span>';
+        } else {
+            return `<span class="badge bg-danger" title="${item.error}">Invalide</span>`;
+        }
+    }
+    
+    function startVerification() {
+        // TODO: Implémenter le démarrage de la vérification VIES
+        alert('Fonction de vérification VIES à implémenter');
+    }
+    
+    function showLoading(message) {
+        // Implémentation simple d'un loading
+        console.log('Loading:', message);
+        // TODO: Implémenter un overlay de loading plus sophistiqué
+    }
+    
+    function hideLoading() {
+        console.log('Loading terminé');
+    }
+    
+    function showError(message) {
+        alert('Erreur: ' + message);
+        // TODO: Implémenter un système de toast/notification plus élégant
+    }
+    
+});
+</script>
+{% endblock %}

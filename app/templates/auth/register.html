@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-4">
+        <div class="card shadow">
+            <div class="card-body p-4">
+                <div class="text-center mb-4">
+                    <h3 class="fw-bold">Inscription</h3>
+                    <p class="text-muted">Créez votre compte VATProof</p>
+                </div>
+                
+                <form id="registerForm">
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="email" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="company_name" class="form-label">Nom de société (optionnel)</label>
+                        <input type="text" class="form-control" id="company_name">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Mot de passe</label>
+                        <input type="password" class="form-control" id="password" required minlength="6">
+                        <div class="form-text">Au moins 6 caractères</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="alert alert-info small">
+                            <strong>Compte gratuit :</strong> 10 vérifications par mois
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid mb-3">
+                        <button type="submit" class="btn btn-primary">
+                            Créer mon compte
+                        </button>
+                    </div>
+                </form>
+                
+                <div class="text-center">
+                    <p class="mb-0">
+                        Déjà un compte ? 
+                        <a href="{{ url_for('auth.login') }}" class="text-decoration-none">
+                            Se connecter
+                        </a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('registerForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    const company_name = document.getElementById('company_name').value;
+    
+    try {
+        const response = await fetch('/auth/register', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email, password, company_name })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            alert('Inscription réussie !');
+            window.location.href = '/';
+        } else {
+            alert('Erreur: ' + data.error);
+        }
+    } catch (error) {
+        alert('Erreur lors de l\'inscription');
+    }
+});
+</script>
+{% endblock %}

@@ -42,7 +42,7 @@ class Config:
 
 class DevelopmentConfig(Config):
     """Configuration pour l'environnement de développement"""
-    DEBUG = True
+    DEBUG = True  # Changé à True
     TESTING = False
 
 class ProductionConfig(Config):

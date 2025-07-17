@@ -72,9 +72,26 @@ def configure_celery(app):
         enable_utc=True,
         task_track_started=True,
         task_routes={
-            'app.tasks.vies_checker.*': {'queue': 'vies_verification'}
-        }
+            'app.tasks.vies_verification.*': {'queue': 'vies_verification'}
+        },
+        # Configuration pour la production
+        worker_prefetch_multiplier=1,
+        task_acks_late=True,
+        worker_max_tasks_per_child=50,
+        # Délais et timeouts
+        task_soft_time_limit=300,  # 5 minutes
+        task_time_limit=600,       # 10 minutes
+        worker_disable_rate_limits=False
     )
+    
+    # Mise à jour du contexte de l'app dans Celery
+    class ContextTask(celery.Task):
+        """Make celery tasks work with Flask app context."""
+        def __call__(self, *args, **kwargs):
+            with app.app_context():
+                return self.run(*args, **kwargs)
+    
+    celery.Task = ContextTask
 
 def create_directories(app):
     """Crée les dossiers nécessaires s'ils n'existent pas"""
@@ -87,3 +104,24 @@ def create_directories(app):
     for directory in directories:
         if not os.path.exists(directory):
             os.makedirs(directory)
+
+def make_celery(app):
+    """
+    Fonction utilitaire pour créer une instance Celery configurée avec Flask
+    Utilisée pour lancer les workers
+    """
+    celery_instance = Celery(
+        app.import_name,
+        backend=app.config['CELERY_RESULT_BACKEND'],
+        broker=app.config['CELERY_BROKER_URL']
+    )
+    
+    celery_instance.conf.update(app.config)
+    
+    class ContextTask(celery_instance.Task):
+        def __call__(self, *args, **kwargs):
+            with app.app_context():
+                return self.run(*args, **kwargs)
+    
+    celery_instance.Task = ContextTask
+    return celery_instance
