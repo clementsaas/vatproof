@@ -3,6 +3,11 @@ Point d'entrée principal pour l'application VATProof
 Lance le serveur Flask en mode développement
 """
 import os
+import sys
+
+# Ajout du dossier racine au PATH Python
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from app import create_app
 
 # Création de l'instance Flask
