@@ -1,0 +1,27 @@
+# Core
+flask
+flask-login
+flask-wtf
+python-dotenv
+
+# Base de données
+sqlalchemy
+flask-sqlalchemy
+
+# Async
+celery
+redis
+
+# PDF / fichiers
+pyzipper
+
+# Robot navigateur (plus tard dans le projet)
+playwright
+
+# Import/export fichiers
+pandas
+openpyxl
+
+# Outils dev
+black
+flake8
