@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container my-5">
+    
+    <!-- En-tête -->
+    <div class="row justify-content-center mb-5">
+        <div class="col-lg-8 text-center">
+            <h1 class="display-5 fw-bold mb-3">À propos de VATProof</h1>
+            <p class="lead text-muted">
+                La solution professionnelle pour la vérification automatique des numéros de TVA intracommunautaire
+                avec génération des justificatifs officiels.
+            </p>
+        </div>
+    </div>
+    
+    <!-- Objectif -->
+    <div class="row justify-content-center mb-5">
+        <div class="col-lg-10">
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-5">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h3 class="fw-bold mb-3">
+                                <i class="bi bi-bullseye text-primary me-2"></i>
+                                Notre objectif
+                            </h3>
+                            <p class="mb-3">
+                                VATProof automatise la vérification des numéros de TVA intracommunautaire via le site officiel 
+                                <strong>VIES</strong> (VAT Information Exchange System) de la Commission européenne.
+                            </p>
+                            <p class="mb-0">
+                                Notre plateforme génère automatiquement les <strong>justificatifs PDF horodatés</strong> 
+                                nécessaires pour prouver la validité d'un numéro de TVA au moment d'une transaction, 
+                                conformément aux obligations fiscales européennes.
+                            </p>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            <i class="bi bi-award text-success" style="font-size: 5rem;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Public cible -->
+    <div class="row justify-content-center mb-5">
+        <div class="col-lg-10">
+            <h3 class="text-center fw-bold mb-4">Conçu pour les professionnels</h3>
+            <div class="row">
+                <div class="col-md-4 mb-4">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body text-center p-4">
+                            <i class="bi bi-building text-primary" style="font-size: 2.5rem;"></i>
+                            <h5 class="mt-3 mb-3">Cabinets comptables</h5>
+                            <p class="text-muted">
+                                Vérifiez en masse les numéros de TVA de vos clients pour sécuriser 
+                                les opérations d'autoliquidation.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-4">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body text-center p-4">
+                            <i class="bi bi-truck text-success" style="font-size: 2.5rem;"></i>
+                            <h5 class="mt-3 mb-3">Entreprises exportatrices</h5>
+                            <p class="text-muted">
+                                Sécurisez vos ventes B2B intracommunautaires en vérifiant 
+                                systématiquement vos clients européens.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-4">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body text-center p-4">
+                            <i class="bi bi-people text-info" style="font-size: 2.5rem;"></i>
+                            <h5 class="mt-3 mb-3">Services fiscaux</h5>
+                            <p class="text-muted">
+                                Optimisez vos processus internes de contrôle et de validation 
+                                des numéros de TVA européens.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Conformité légale -->
+    <div class="row justify-content-center mb-5">
+        <div class="col-lg-10">
+            <div class="card bg-light border-0">
+                <div class="card-body p-5">
+                    <h3 class="fw-bold mb-4 text-center">
+                        <i class="bi bi-shield-check text-success me-2"></i>
+                        Conformité légale et sécurité
+                    </h3>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-4">
+                            <h5>
+                                <i class="bi bi-check-circle text-success me-2"></i>
+                                100% Légal
+                            </h5>
+                            <ul class="list-unstyled ms-4">
+                                <li class="mb-2">✓ Utilise uniquement le site officiel VIES</li>
+                                <li class="mb-2">✓ Aucune reproduction ou modification des contenus</li>
+                                <li class="mb-2">✓ Respect des conditions d'utilisation européennes</li>
+                                <li class="mb-2">✓ Justificatifs officiels non altérés</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6 mb-4">
+                            <h5>
+                                <i class="bi bi-lock text-primary me-2"></i>
+                                Conforme RGPD
+                            </h5>
+                            <ul class="list-unstyled ms-4">
+                                <li class="mb-2">✓ Aucun stockage permanent des PDF</li>
+                                <li class="mb-2">✓ Suppression automatique après téléchargement</li>
+                                <li class="mb-2">✓ Données minimales collectées</li>
+                                <li class="mb-2">✓ Accès utilisateur cloisonné</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info mt-4">
+                        <h6 class="alert-heading">
+                            <i class="bi bi-info-circle me-2"></i>
+                            Importance des justificatifs PDF
+                        </h6>
+                        <p class="mb-0">
+                            En cas de contrôle fiscal, seuls les justificatifs PDF officiels générés par le site VIES 
+                            sont acceptés par l'administration française pour prouver la validité d'un numéro de TVA 
+                            au moment d'une transaction. Les simples vérifications API ne suffisent pas.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Fonctionnement -->
+    <div class="row justify-content-center mb-5">
+        <div class="col-lg-10">
+            <h3 class="text-center fw-bold mb-4">Comment ça fonctionne</h3>
+            <div class="row">
+                <div class="col-md-3 mb-4 text-center">
+                    <div class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center mb-3" 
+                         style="width: 60px; height: 60px;">
+                        <strong>1</strong>
+                    </div>
+                    <h6>Import de votre liste</h6>
+                    <p class="text-muted small">
+                        Glissez votre fichier CSV/Excel ou collez directement vos numéros de TVA.
+                    </p>
+                </div>
+                <div class="col-md-3 mb-4 text-center">
+                    <div class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center mb-3" 
+                         style="width: 60px; height: 60px;">
+                        <strong>2</strong>
+                    </div>
+                    <h6>Vérification automatique</h6>
+                    <p class="text-muted small">
+                        Notre robot navigue sur le site VIES et vérifie chaque numéro automatiquement.
+                    </p>
+                </div>
+                <div class="col-md-3 mb-4 text-center">
+                    <div class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center mb-3" 
+                         style="width: 60px; height: 60px;">
+                        <strong>3</strong>
+                    </div>
+                    <h6>Génération des PDF</h6>
+                    <p class="text-muted small">
+                        Les justificatifs officiels sont téléchargés et horodatés automatiquement.
+                    </p>
+                </div>
+                <div class="col-md-3 mb-4 text-center">
+                    <div class="rounded-circle bg-success text-white d-inline-flex align-items-center justify-content-center mb-3" 
+                         style="width: 60px; height: 60px;">
+                        <strong>4</strong>
+                    </div>
+                    <h6>Téléchargement ZIP</h6>
+                    <p class="text-muted small">
+                        Récupérez tous vos justificatifs dans un fichier ZIP organisé et horodaté.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Technologie -->
+    <div class="row justify-content-center mb-5">
+        <div class="col-lg-10">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-5">
+                    <h3 class="fw-bold mb-4 text-center">
+                        <i class="bi bi-gear text-primary me-2"></i>
+                        Technologie et fiabilité
+                    </h3>
+                    
+                    <div class="row">
+                        <div class="col-md-4 mb-4">
+                            <h6>
+                                <i class="bi bi-robot text-info me-2"></i>
+                                Automatisation intelligente
+                            </h6>
+                            <p class="text-muted small">
+                                Simulation parfaite du comportement humain pour éviter toute détection 
+                                ou blocage par les systèmes de protection.
+                            </p>
+                        </div>
+                        <div class="col-md-4 mb-4">
+                            <h6>
+                                <i class="bi bi-arrow-repeat text-warning me-2"></i>
+                                Traitement asynchrone
+                            </h6>
+                            <p class="text-muted small">
+                                Gestion des files d'attente pour traiter des centaines de numéros 
+                                en parallèle sans bloquer l'interface.
+                            </p>
+                        </div>
+                        <div class="col-md-4 mb-4">
+                            <h6>
+                                <i class="bi bi-cloud text-primary me-2"></i>
+                                Architecture scalable
+                            </h6>
+                            <p class="text-muted small">
+                                Infrastructure cloud prête pour gérer un volume important d'utilisateurs 
+                                et de vérifications simultanées.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Contact -->
+    <div class="row justify-content-center">
+        <div class="col-lg-8 text-center">
+            <div class="card bg-primary text-white border-0">
+                <div class="card-body p-5">
+                    <h4 class="fw-bold mb-3">Une question ? Besoin d'aide ?</h4>
+                    <p class="mb-4">
+                        Notre équipe est à votre disposition pour vous accompagner dans l'utilisation de VATProof.
+                    </p>
+                    <div class="d-flex justify-content-center gap-3">
+                        <a href="#" class="btn btn-light">
+                            <i class="bi bi-envelope me-2"></i>
+                            Nous contacter
+                        </a>
+                        <a href="#" class="btn btn-outline-light">
+                            <i class="bi bi-question-circle me-2"></i>
+                            Documentation
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+</div>
+{% endblock %}
