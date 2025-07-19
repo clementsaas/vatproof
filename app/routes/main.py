@@ -1,351 +1,331 @@
 """
-Routes d'authentification pour VATProof avec base de données
-Gère l'inscription, connexion et gestion des utilisateurs
+Routes principales de l'application VATProof
+Gère les endpoints pour l'interface utilisateur et l'API
 """
-from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for, flash
-from datetime import datetime, date
-import re
+from flask import Blueprint, render_template, request, jsonify, current_app, send_file
+from datetime import datetime
+import uuid
+import os
 
-from app import db
-from app.models.user import User, SystemLog
+# Import des services
+from app.services.file_service import FileService
+from app.services.vat_service import VATService
 
-auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
+main_bp = Blueprint('main', __name__)
 
-@auth_bp.route('/login', methods=['GET', 'POST'])
-def login():
-    """Page et traitement de connexion"""
-    if request.method == 'GET':
-        return render_template('auth/login.html', title='Connexion - VATProof')
+@main_bp.route('/')
+def home():
+    return render_template('home.html', title='VATProof - Accueil')
+
+@main_bp.route('/about')
+def about():
+    return render_template('about.html', title='À propos')
+
+@main_bp.route('/api/status')
+def api_status():
+    """
+    Endpoint API pour vérifier le statut de l'application
     
-    # Traitement POST
+    Returns:
+        dict: Statut de l'application et des services
+    """
     try:
-        data = request.get_json() if request.is_json else request.form
-        email = data.get('email', '').strip().lower()
-        password = data.get('password', '')
-        
-        if not email or not password:
-            return jsonify({'error': 'Email et mot de passe requis'}), 400
-        
-        # Recherche de l'utilisateur
-        user = User.query.filter_by(email=email).first()
-        
-        if not user or not user.check_password(password):
-            # Log de tentative de connexion échouée
-            SystemLog.log_warning('auth', f'Tentative de connexion échouée pour {email}')
-            return jsonify({'error': 'Email ou mot de passe incorrect'}), 401
-        
-        if not user.is_active:
-            SystemLog.log_warning('auth', f'Tentative de connexion sur compte désactivé: {email}')
-            return jsonify({'error': 'Compte désactivé'}), 401
-        
-        # Connexion réussie
-        session['user_id'] = str(user.id)
-        session['user_email'] = user.email
-        session['logged_in'] = True
-        
-        # Mise à jour de la dernière connexion
-        user.last_login = datetime.utcnow()
-        db.session.commit()
-        
-        # Log de connexion réussie
-        SystemLog.log_info('auth', f'Connexion réussie pour {user.email}', user_id=user.id)
-        
-        if request.is_json:
-            return jsonify({
-                'success': True,
-                'message': 'Connexion réussie',
-                'user': user.to_dict()
-            })
-        else:
-            flash('Connexion réussie', 'success')
-            return redirect(url_for('main.home'))
-            
+        # Test de la connexion à la base de données
+        from app import db
+        with current_app.app_context():
+            db.session.execute('SELECT 1')
+        db_status = 'ok'
     except Exception as e:
-        SystemLog.log_error('auth', f'Erreur lors de la connexion: {str(e)}')
-        return jsonify({'error': f'Erreur lors de la connexion: {str(e)}'}), 500
-
-@auth_bp.route('/register', methods=['GET', 'POST'])
-def register():
-    """Page et traitement d'inscription"""
-    if request.method == 'GET':
-        return render_template('auth/register.html', title='Inscription - VATProof')
+        current_app.logger.error(f"Erreur base de données: {e}")
+        db_status = 'error'
     
-    # Traitement POST
+    # Test de Redis/Celery
     try:
-        data = request.get_json() if request.is_json else request.form
-        email = data.get('email', '').strip().lower()
-        password = data.get('password', '')
-        company_name = data.get('company_name', '').strip()
+        # Import local pour éviter les erreurs si Celery n'est pas configuré
+        import redis
+        r = redis.Redis(host='localhost', port=6379, db=0)
+        r.ping()
+        redis_status = 'ok'
+    except Exception:
+        redis_status = 'error'
+    
+    return jsonify({
+        'status': 'ok',
+        'timestamp': datetime.utcnow().isoformat(),
+        'services': {
+            'database': db_status,
+            'redis': redis_status,
+            'celery': redis_status
+        },
+        'version': '1.0.0-mvp'
+    })
+
+@main_bp.route('/api/upload', methods=['POST'])
+def api_upload():
+    """
+    Endpoint pour l'upload de fichiers CSV/Excel contenant les numéros de TVA
+    
+    Returns:
+        dict: Résultat de l'upload et ID de traitement
+    """
+    try:
+        # Vérification de la présence du fichier
+        if 'file' not in request.files:
+            return jsonify({'error': 'Aucun fichier fourni'}), 400
         
-        # Validations
-        if not email or not password:
-            return jsonify({'error': 'Email et mot de passe requis'}), 400
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'Aucun fichier sélectionné'}), 400
         
-        if not re.match(r'^[^@]+@[^@]+\.[^@]+$', email):
-            return jsonify({'error': 'Format d\'email invalide'}), 400
+        # Parsing du fichier
+        current_app.logger.info(f"Début parsing fichier: {file.filename}")
         
-        if len(password) < 6:
-            return jsonify({'error': 'Le mot de passe doit contenir au moins 6 caractères'}), 400
+        parsed_result = FileService.parse_file(file)
         
-        # Vérification que l'utilisateur n'existe pas déjà
-        existing_user = User.query.filter_by(email=email).first()
-        if existing_user:
-            return jsonify({'error': 'Un compte existe déjà avec cet email'}), 409
+        if not parsed_result['success']:
+            return jsonify({
+                'error': parsed_result['error'],
+                'filename': file.filename
+            }), 400
         
-        # Création du nouvel utilisateur
-        new_user = User(
-            email=email,
-            password=password,
-            company_name=company_name if company_name else None
+        # Extraction des numéros de TVA
+        vat_numbers = FileService.extract_vat_numbers(parsed_result)
+        
+        if not vat_numbers:
+            return jsonify({
+                'error': 'Aucun numéro de TVA trouvé dans le fichier',
+                'filename': file.filename,
+                'headers': parsed_result.get('headers', [])
+            }), 400
+        
+        # Validation des numéros de TVA
+        validation_results = VATService.validate_vat_list(vat_numbers)
+        
+        # Génération d'un ID de job unique
+        job_id = str(uuid.uuid4())
+        
+        # Préparation de la réponse
+        response_data = {
+            'success': True,
+            'job_id': job_id,
+            'filename': file.filename,
+            'message': f'Fichier analysé avec succès',
+            'stats': {
+                'total_lines': parsed_result['row_count'],
+                'total_vat_numbers': len(vat_numbers),
+                'valid_count': validation_results['summary']['valid_count'],
+                'invalid_count': validation_results['summary']['invalid_count'],
+                'duplicate_count': validation_results['summary']['duplicate_count']
+            },
+            'preview': _format_preview_data(validation_results),
+            'countries': validation_results['summary']['countries'],
+            'status': 'parsed'
+        }
+        
+        # Log du succès
+        current_app.logger.info(
+            f"Fichier {file.filename} parsé: {len(vat_numbers)} numéros, "
+            f"{validation_results['summary']['valid_count']} valides"
         )
         
-        # Initialisation du quota mensuel
-        new_user.quota_reset_date = date.today()
+        return jsonify(response_data)
         
-        db.session.add(new_user)
-        db.session.commit()
+    except Exception as e:
+        current_app.logger.error(f"Erreur lors de l'upload: {str(e)}")
+        return jsonify({
+            'error': 'Erreur interne lors du traitement du fichier',
+            'details': str(e) if current_app.debug else None
+        }), 500
+
+@main_bp.route('/api/verify-paste', methods=['POST'])
+def api_verify_paste():
+    """
+    Endpoint pour traiter les numéros de TVA collés directement
+    
+    Returns:
+        dict: Résultat du parsing et ID de traitement
+    """
+    try:
+        data = request.get_json()
         
-        # Connexion automatique
-        session['user_id'] = str(new_user.id)
-        session['user_email'] = new_user.email
-        session['logged_in'] = True
+        if not data or 'content' not in data:
+            return jsonify({'error': 'Contenu manquant'}), 400
         
-        # Log d'inscription
-        SystemLog.log_info('auth', f'Nouvelle inscription: {new_user.email}', user_id=new_user.id)
+        content = data['content'].strip()
+        if not content:
+            return jsonify({'error': 'Contenu vide'}), 400
         
-        if request.is_json:
+        current_app.logger.info("Début parsing contenu collé")
+        
+        # Extraction des numéros de TVA du texte
+        vat_numbers = FileService.parse_text_content(content)
+        
+        if not vat_numbers:
             return jsonify({
-                'success': True,
-                'message': 'Inscription réussie',
-                'user': new_user.to_dict()
-            })
-        else:
-            flash('Inscription réussie ! Bienvenue sur VATProof.', 'success')
-            return redirect(url_for('main.home'))
-            
+                'error': 'Aucun numéro de TVA détecté dans le contenu',
+                'content_preview': content[:200] + '...' if len(content) > 200 else content
+            }), 400
+        
+        # Validation des numéros de TVA
+        validation_results = VATService.validate_vat_list(vat_numbers)
+        
+        # Génération d'un ID de job unique
+        job_id = str(uuid.uuid4())
+        
+        # Préparation de la réponse
+        response_data = {
+            'success': True,
+            'job_id': job_id,
+            'source': 'paste',
+            'message': f'{len(vat_numbers)} numéros de TVA détectés',
+            'stats': {
+                'total_lines': len(content.split('\n')),
+                'total_vat_numbers': len(vat_numbers),
+                'valid_count': validation_results['summary']['valid_count'],
+                'invalid_count': validation_results['summary']['invalid_count'],
+                'duplicate_count': validation_results['summary']['duplicate_count']
+            },
+            'preview': _format_preview_data(validation_results),
+            'countries': validation_results['summary']['countries'],
+            'status': 'parsed'
+        }
+        
+        # Log du succès
+        current_app.logger.info(
+            f"Contenu collé parsé: {len(vat_numbers)} numéros, "
+            f"{validation_results['summary']['valid_count']} valides"
+        )
+        
+        return jsonify(response_data)
+        
     except Exception as e:
-        db.session.rollback()
-        SystemLog.log_error('auth', f'Erreur lors de l\'inscription: {str(e)}')
-        return jsonify({'error': f'Erreur lors de l\'inscription: {str(e)}'}), 500
+        current_app.logger.error(f"Erreur lors du parsing paste: {str(e)}")
+        return jsonify({
+            'error': 'Erreur interne lors du traitement du contenu',
+            'details': str(e) if current_app.debug else None
+        }), 500
 
-@auth_bp.route('/logout', methods=['GET', 'POST'])
-def logout():
-    """Déconnexion"""
-    user_email = session.get('user_email')
+@main_bp.route('/api/jobs/<job_id>/status')
+def api_job_status(job_id):
+    """
+    Endpoint pour suivre le statut d'un job de vérification
+    TODO: Implémenter le suivi via Celery
     
-    # Log de déconnexion
-    if user_email:
-        user = User.query.filter_by(email=user_email).first()
-        if user:
-            SystemLog.log_info('auth', f'Déconnexion: {user.email}', user_id=user.id)
+    Args:
+        job_id (str): Identifiant du job
+        
+    Returns:
+        dict: Statut du job et progression
+    """
+    # Placeholder pour le moment - simulation d'un job en cours
+    return jsonify({
+        'job_id': job_id,
+        'status': 'pending',
+        'progress': {
+            'total': 0,
+            'completed': 0,
+            'failed': 0,
+            'in_progress': 0
+        },
+        'created_at': datetime.utcnow().isoformat(),
+        'estimated_completion': None,
+        'message': 'Job en attente de traitement (simulation)'
+    })
+
+@main_bp.route('/api/batches/<batch_id>/download')
+def api_download_batch_zip(batch_id):
+    """
+    Génère et télécharge le ZIP d'un lot terminé
+    TODO: Implémenter avec la nouvelle architecture de base
     
-    session.clear()
+    Args:
+        batch_id (str): ID du lot
+        
+    Returns:
+        File: Fichier ZIP ou erreur JSON
+    """
+    return jsonify({
+        'error': 'Fonctionnalité en cours de développement',
+        'message': 'Le téléchargement ZIP sera disponible dans la prochaine version'
+    }), 501
+
+@main_bp.route('/api/batches/<batch_id>/zip-info')
+def api_batch_zip_info(batch_id):
+    """
+    Récupère les informations sur le ZIP d'un lot
+    TODO: Implémenter avec la nouvelle architecture de base
     
-    if request.is_json:
-        return jsonify({'success': True, 'message': 'Déconnexion réussie'})
+    Args:
+        batch_id (str): ID du lot
+        
+    Returns:
+        dict: Informations sur le ZIP disponible
+    """
+    return jsonify({
+        'error': 'Fonctionnalité en cours de développement',
+        'message': 'Les informations ZIP seront disponibles dans la prochaine version'
+    }), 501
+
+def _format_preview_data(validation_results):
+    """
+    Formate les données de validation pour la prévisualisation
+    
+    Args:
+        validation_results (dict): Résultats de VATService.validate_vat_list
+        
+    Returns:
+        list: Données formatées pour l'affichage
+    """
+    preview = []
+    
+    # Prendre les 10 premiers résultats (valides et invalides mélangés)
+    all_results = validation_results['valid'][:5] + validation_results['invalid'][:5]
+    
+    for result in all_results[:10]:  # Limite à 10 pour la prévisualisation
+        preview_item = {
+            'line_number': result.get('line_number', 0),
+            'original': result['original'],
+            'cleaned': result['cleaned'],
+            'country_code': result.get('country_code'),
+            'country_name': VATService.get_country_name(result.get('country_code', '')) if result.get('country_code') else None,
+            'is_valid': result['is_valid'],
+            'is_duplicate': result.get('is_duplicate', False),
+            'error': result.get('error'),
+            'status_class': _get_status_class(result)
+        }
+        preview.append(preview_item)
+    
+    return preview
+
+def _get_status_class(validation_result):
+    """
+    Détermine la classe CSS pour le statut d'un numéro de TVA
+    
+    Args:
+        validation_result (dict): Résultat de validation
+        
+    Returns:
+        str: Classe CSS appropriée
+    """
+    if validation_result.get('is_duplicate'):
+        return 'warning'  # Badge orange pour les doublons
+    elif validation_result['is_valid']:
+        return 'success'  # Badge vert pour les valides
     else:
-        flash('Vous avez été déconnecté', 'info')
-        return redirect(url_for('main.home'))
+        return 'danger'   # Badge rouge pour les invalides
 
-@auth_bp.route('/profile')
-def profile():
-    """Page de profil utilisateur"""
-    user = get_current_user()
-    if not user:
-        return redirect(url_for('auth.login'))
-    
-    return render_template('auth/profile.html', 
-                         title='Mon profil - VATProof',
-                         user=user)
+# Gestionnaires d'erreurs
+@main_bp.errorhandler(404)
+def not_found_error(error):
+    """Gestionnaire d'erreur 404"""
+    if request.path.startswith('/api/'):
+        return jsonify({'error': 'Endpoint non trouvé'}), 404
+    return render_template('errors/404.html'), 404
 
-@auth_bp.route('/api/me')
-def api_current_user():
-    """API pour récupérer les infos de l'utilisateur connecté"""
-    user = get_current_user()
-    if not user:
-        return jsonify({'error': 'Non connecté'}), 401
-    
-    return jsonify(user.to_dict())
-
-@auth_bp.route('/api/quota/check')
-def api_check_quota():
-    """Vérifie si l'utilisateur peut effectuer des vérifications"""
-    user = get_current_user()
-    if not user:
-        return jsonify({'error': 'Non connecté'}), 401
-    
-    count_requested = request.args.get('count', 1, type=int)
-    can_verify = user.can_verify(count_requested)
-    
-    return jsonify({
-        'can_verify': can_verify,
-        'quota_available': user.monthly_quota - user.quota_used,
-        'subscription_type': user.subscription_type,
-        'message': 'Quota suffisant' if can_verify else 'Quota insuffisant - Passez en Premium'
-    })
-
-@auth_bp.route('/api/quota/use', methods=['POST'])
-def api_use_quota():
-    """Utilise le quota de l'utilisateur"""
-    user = get_current_user()
-    if not user:
-        return jsonify({'error': 'Non connecté'}), 401
-    
-    data = request.get_json()
-    count = data.get('count', 1)
-    
-    # Vérification du quota
-    if not user.can_verify(count):
-        return jsonify({'error': 'Quota insuffisant'}), 403
-    
-    # Utilisation du quota
-    user.use_quota(count)
-    
-    return jsonify({
-        'success': True,
-        'quota_used': user.quota_used,
-        'quota_remaining': user.monthly_quota - user.quota_used
-    })
-
-@auth_bp.route('/api/quota/reset', methods=['POST'])
-def api_reset_quota():
-    """Reset du quota mensuel (pour admin ou tâche automatique)"""
-    user = get_current_user()
-    if not user:
-        return jsonify({'error': 'Non connecté'}), 401
-    
-    # TODO: Ajouter vérification admin ou autorisation spéciale
-    
-    user.reset_monthly_quota()
-    
-    SystemLog.log_info('auth', f'Quota reset pour {user.email}', user_id=user.id)
-    
-    return jsonify({
-        'success': True,
-        'message': 'Quota mensuel remis à zéro',
-        'quota_used': user.quota_used
-    })
-
-@auth_bp.route('/api/users', methods=['GET'])
-def api_list_users():
-    """Liste des utilisateurs (pour admin uniquement)"""
-    # TODO: Implémenter vérification admin
-    current_user = get_current_user()
-    if not current_user:
-        return jsonify({'error': 'Non connecté'}), 401
-    
-    # Pour l'instant, seul Clément peut voir cette liste
-    if current_user.email != 'clement@vatproof.com':
-        return jsonify({'error': 'Accès non autorisé'}), 403
-    
-    users = User.query.order_by(User.created_at.desc()).all()
-    
-    return jsonify({
-        'users': [user.to_dict() for user in users],
-        'total_count': len(users)
-    })
-
-@auth_bp.route('/api/users/<user_id>/toggle-active', methods=['POST'])
-def api_toggle_user_active(user_id):
-    """Active/désactive un utilisateur (admin uniquement)"""
-    current_user = get_current_user()
-    if not current_user or current_user.email != 'clement@vatproof.com':
-        return jsonify({'error': 'Accès non autorisé'}), 403
-    
-    try:
-        user = User.query.get(user_id)
-        if not user:
-            return jsonify({'error': 'Utilisateur non trouvé'}), 404
-        
-        user.is_active = not user.is_active
-        db.session.commit()
-        
-        action = 'activé' if user.is_active else 'désactivé'
-        SystemLog.log_info('admin', f'Utilisateur {user.email} {action} par {current_user.email}', 
-                          user_id=current_user.id)
-        
-        return jsonify({
-            'success': True,
-            'message': f'Utilisateur {action}',
-            'is_active': user.is_active
-        })
-        
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
-
-# Fonctions utilitaires
-
-def login_required(f):
-    """Décorateur pour les routes nécessitant une authentification"""
-    from functools import wraps
-    
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not session.get('logged_in'):
-            if request.is_json:
-                return jsonify({'error': 'Authentification requise'}), 401
-            else:
-                return redirect(url_for('auth.login'))
-        return f(*args, **kwargs)
-    return decorated_function
-
-def get_current_user():
-    """Récupère l'utilisateur actuellement connecté"""
-    if not session.get('logged_in'):
-        return None
-    
-    user_id = session.get('user_id')
-    if user_id:
-        return User.query.get(user_id)
-    
-    return None
-
-def admin_required(f):
-    """Décorateur pour les routes nécessitant des droits admin"""
-    from functools import wraps
-    
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        user = get_current_user()
-        if not user:
-            return jsonify({'error': 'Authentification requise'}), 401
-        
-        # Pour l'instant, seul Clément est admin
-        if user.email != 'clement@vatproof.com':
-            return jsonify({'error': 'Droits administrateur requis'}), 403
-        
-        return f(*args, **kwargs)
-    return decorated_function
-
-# Reset quotas automatique (à appeler via cron ou tâche périodique)
-@auth_bp.route('/api/admin/reset-all-quotas', methods=['POST'])
-@admin_required
-def api_reset_all_quotas():
-    """Reset tous les quotas mensuels (1er du mois)"""
-    try:
-        today = date.today()
-        
-        # Reset seulement les comptes free dont la date de reset est dépassée
-        users_to_reset = User.query.filter(
-            User.subscription_type == 'free',
-            User.quota_reset_date < today
-        ).all()
-        
-        reset_count = 0
-        for user in users_to_reset:
-            user.reset_monthly_quota()
-            reset_count += 1
-        
-        SystemLog.log_info('admin', f'Reset automatique quotas: {reset_count} utilisateurs')
-        
-        return jsonify({
-            'success': True,
-            'message': f'{reset_count} quotas remis à zéro',
-            'reset_count': reset_count
-        })
-        
-    except Exception as e:
-        db.session.rollback()
-        SystemLog.log_error('admin', f'Erreur reset quotas: {str(e)}')
-        return jsonify({'error': str(e)}), 500
+@main_bp.errorhandler(500)
+def internal_error(error):
+    """Gestionnaire d'erreur 500"""
+    current_app.logger.error(f"Erreur interne: {error}")
+    if request.path.startswith('/api/'):
+        return jsonify({'error': 'Erreur interne du serveur'}), 500
+    return render_template('errors/500.html'), 500
